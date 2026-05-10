@@ -1,19 +1,22 @@
-# gh-scout
+---
+allowed-tools: Bash, Read, Agent
+description: "Use when the user wants to find existing GitHub repos, tools, libraries, or solutions for a problem. Triggers on: 'find me a tool', 'is there a repo for', 'what's the best library for', 'search GitHub for', 'any open source solution for', or any request to discover existing software/tools/repos that solve a problem."
+---
 
-Find the best GitHub repos for any need. Given a problem or goal in natural language, search GitHub intelligently, analyze READMEs, and rank repos by actual relevance.
+# gh-scout: Find the best GitHub repos for any need
 
-## Instructions
+When the user describes a need, problem, or goal, find the most relevant GitHub repos that solve it.
 
-When the user invokes this skill with a goal/need, follow these steps:
+## Process
 
-### Step 1: Expand the goal into 5 search queries
+### Step 1: Expand into 5 search queries
 
 Think about the user's need from multiple angles:
-- Direct solution (exact tool that does this)
-- Frameworks that enable it
-- Adjacent/related tools
-- Alternative phrasings and keywords
-- Specific technology + use case combinations
+- Direct solution (exact tool name or category)
+- Frameworks/libraries that enable it
+- Adjacent tools in the same ecosystem
+- Alternative phrasings (what would someone name this tool?)
+- Technology-specific terms (e.g., "golang CLI" or "python library")
 
 ### Step 2: Search GitHub
 
@@ -22,53 +25,56 @@ For each query, run:
 gh api search/repositories -X GET -f "q=<query> stars:>=100" -f "sort=stars" -f "order=desc" -f "per_page=20"
 ```
 
-Deduplicate results across queries by repo full_name.
+Collect and deduplicate results by `full_name`.
 
-### Step 3: Fetch READMEs for top candidates
+### Step 3: Fetch READMEs for top 15 candidates (by stars)
 
-For the top 15-20 repos by stars, fetch their README:
 ```bash
 gh api repos/<owner>/<name>/readme -H "Accept: application/vnd.github.raw+json"
 ```
 
-### Step 4: Rank by relevance
+Read the first 2000 characters to understand what each repo actually does.
 
-Analyze each repo's description + README against the user's stated goal. Score 1-10:
-- 10: Directly solves the exact need
-- 7-9: Strong match, would need minor adaptation
-- 5-6: Partially relevant, solves a subset of the need
-- <5: Not relevant enough to recommend
+### Step 4: Rank by relevance (be strict)
 
-Be strict. A repo about email marketing is NOT relevant if the user wants code linting.
+Score each repo 1-10 against the user's specific need:
+- **10:** Directly solves the exact need, ready to use
+- **8-9:** Strong match, may need minor config/adaptation
+- **6-7:** Partially relevant, solves a subset
+- **< 6:** Not relevant enough — exclude
+
+**Be strict.** A popular repo that's tangentially related is NOT a good result. Quality > quantity.
 
 ### Step 5: Present results
 
-Output a ranked table of the top results (relevance >= 6):
+Output format:
 
 ```
-## Results for: "<user's goal>"
+## GitHub Scout: "<user's goal>"
 
-| # | Repo | Stars | Relevance | Why |
-|---|------|-------|-----------|-----|
-| 1 | owner/name | 5.2k | 9/10 | One sentence reason |
-| ... |
+| # | Repo | ⭐ | Relevance | Why |
+|---|------|-----|-----------|-----|
+| 1 | owner/name | 12.3k | 9/10 | Direct solution — does exactly X |
+| 2 | ... |
 
-### Top Recommendations
+### Recommendations
 
-1. **owner/repo** — detailed explanation of how this solves the user's need
-   - Install: `command`
-   - Key feature that matches their need
-   - Limitation to be aware of
+**Best match: [owner/repo](url)**
+- What it does and why it fits
+- How to install/use
+- Any limitations
 
-2. ...
+**Also worth considering: [owner/repo2](url)**
+- ...
 ```
 
 ### Rules
 
-- Always search with multiple query angles — a single query misses too much
-- Stars alone don't equal relevance — a 500-star focused tool beats a 50k-star tangential framework
-- Read the README before ranking — descriptions are often misleading
-- If nothing good is found (all < 6 relevance), say so honestly and suggest the user might need to build it
-- Present max 10 results, quality over quantity
+- Search with multiple query angles — a single query misses too much
+- Stars ≠ relevance. A 500⭐ focused tool > 50k⭐ tangential framework
+- Read the README before ranking — titles/descriptions are often misleading
+- If nothing good exists (all < 6), say so honestly and suggest building it
+- Max 10 results, ranked by relevance (not stars)
+- Include install commands when available
 
 $ARGUMENTS
